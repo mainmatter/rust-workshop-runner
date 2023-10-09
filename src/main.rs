@@ -26,6 +26,11 @@ pub struct Command {
     #[arg(long, default_value = "exercises")]
     pub path: PathBuf,
 
+    #[arg(long)]
+    /// Compile and run tests for all opened exercises, even if they have already succeeded
+    /// in a past run.
+    pub no_skip: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -114,7 +119,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // If no command was specified, we verify the user's progress on the workshop-runner that have already
     // been opened.
-    if let TestOutcome::Failure { details } = seek_the_path(&exercises)? {
+    if let TestOutcome::Failure { details } = seek_the_path(&exercises, command.no_skip)? {
         println!(
             "\n\t{}\n\n{}\n\n",
             info_style()
@@ -172,11 +177,14 @@ fn parse_bool(s: &str) -> Option<bool> {
     }
 }
 
-fn seek_the_path(exercises: &ExerciseCollection) -> Result<TestOutcome, anyhow::Error> {
+fn seek_the_path(
+    exercises: &ExerciseCollection,
+    no_skip: bool,
+) -> Result<TestOutcome, anyhow::Error> {
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
     for exercise in exercises.opened()? {
         let OpenedExercise { definition, solved } = &exercise;
-        if *solved {
+        if *solved && !no_skip {
             println!(
                 "{}",
                 info_style().paint(format!("\t✅ {} (Skipped)", definition))
