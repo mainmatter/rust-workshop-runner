@@ -1,5 +1,5 @@
 [package]
-name = "wr"
+name = "workshop-runner"
 version = "0.1.0"
 edition = "2021"
 authors = ["Luca Palmieri <rust@lpalmieri.com>"]
@@ -7,6 +7,14 @@ description = "A CLI to run test-driven Rust workshops"
 keywords = ["workshop", "education", "learning"]
 categories = ["command-line-utilities"]
 license = "Apache-2.0 OR MIT"
+
+[[bin]]
+name = "wr"
+path = "src/main.rs"
+
+[lib]
+name = "wr"
+path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.72"
