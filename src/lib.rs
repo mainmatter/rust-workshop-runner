@@ -87,8 +87,8 @@ impl ExerciseCollection {
                     (chapter_name.to_owned(), exercise.file_name())
                 })
             })
-            .map(|(c, k)| ExerciseDefinition::new(&c, &k))
-            .collect::<Result<_, _>>()?;
+            .filter_map(|(c, k)| ExerciseDefinition::new(&c, &k).ok())
+            .collect();
 
         let db_path = exercises_dir.join("progress.db");
         // Open the database (or create it, if it doesn't exist yet).
