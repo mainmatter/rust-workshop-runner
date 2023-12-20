@@ -13,7 +13,15 @@ use std::process::Command;
 /// The configuration for the current collection of workshop-runner.
 pub struct ExercisesConfig {
     /// The path to the directory containing the workshop-runner.
+    #[serde(default = "default_exercise_dir")]
     exercises_dir: PathBuf,
+    /// The command that should be run to verify that the workshop-runner is working as expected.
+    #[serde(default)]
+    verification_command: Option<String>,
+}
+
+fn default_exercise_dir() -> PathBuf {
+    PathBuf::from("exercises")
 }
 
 impl ExercisesConfig {
@@ -38,6 +46,12 @@ impl ExercisesConfig {
     pub fn exercises_dir(&self) -> &Path {
         &self.exercises_dir
     }
+
+    /// The command that should be run to verify that the workshop-runner is working as expected.
+    /// If `None`, the workshop-runner will use `cargo test` as default.
+    pub fn verification_command(&self) -> Option<&str> {
+        self.verification_command.as_deref()
+    }
 }
 
 /// Retrieve the path to the root directory of the current `git` repository.
@@ -49,7 +63,7 @@ pub fn get_git_repository_root_dir() -> Result<PathBuf, anyhow::Error> {
     if cmd.status.success() {
         let path = String::from_utf8(cmd.stdout)
             .context("The root path of the current `git` repository is not valid UTF-8")?;
-        Ok(path.into())
+        Ok(path.trim().into())
     } else {
         Err(anyhow!(
             "Failed to determine the root path of the current `git` repository"
