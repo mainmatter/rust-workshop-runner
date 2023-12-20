@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use read_input::prelude::*;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use wr::{ExerciseCollection, ExerciseDefinition, OpenedExercise};
+use std::path::Path;
+use wr::{ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise};
 use yansi::Paint;
 
 /// A small CLI to manage test-driven workshops and tutorials in Rust.
@@ -16,16 +16,6 @@ use yansi::Paint;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Command {
-    /// Path to the exercise collection you want to work on.
-    /// Both absolute and relative paths are supported.
-    ///
-    /// E.g. `wr --path my_exercises` if `my_exercise` is a sub-directory of your current
-    /// working directory.
-    ///
-    /// It defaults to `exercises` if not specified.
-    #[arg(long, default_value = "exercises")]
-    pub path: PathBuf,
-
     #[arg(long)]
     /// Compile and run tests for all opened exercises, even if they have already succeeded
     /// in a past run.
@@ -65,7 +55,8 @@ fn main() -> Result<(), anyhow::Error> {
     if !use_ansi_colours() {
         Paint::disable();
     }
-    let mut exercises = ExerciseCollection::new(command.path)?;
+    let configuration = ExercisesConfig::load()?;
+    let mut exercises = ExerciseCollection::new(configuration.exercises_dir().to_path_buf())?;
 
     if let Some(command) = command.command {
         match command {
@@ -119,7 +110,11 @@ fn main() -> Result<(), anyhow::Error> {
 
     // If no command was specified, we verify the user's progress on the workshop-runner that have already
     // been opened.
-    if let TestOutcome::Failure { details } = seek_the_path(&exercises, command.no_skip)? {
+    if let TestOutcome::Failure { details } = seek_the_path(
+        &exercises,
+        command.no_skip,
+        configuration.verification_command(),
+    )? {
         println!(
             "\n\t{}\n\n{}\n\n",
             info_style()
@@ -180,6 +175,7 @@ fn parse_bool(s: &str) -> Option<bool> {
 fn seek_the_path(
     exercises: &ExerciseCollection,
     no_skip: bool,
+    verification_cmd: Option<&str>,
 ) -> Result<TestOutcome, anyhow::Error> {
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
     for exercise in exercises.opened()? {
@@ -191,7 +187,10 @@ fn seek_the_path(
             );
             continue;
         }
-        let exercise_outcome = run_tests(&definition.manifest_path(exercises.exercises_dir()));
+        let exercise_outcome = verify(
+            &definition.manifest_path(exercises.exercises_dir()),
+            verification_cmd,
+        );
         match exercise_outcome {
             TestOutcome::Success => {
                 println!("{}", success_style().paint(format!("\t🚀 {}", definition)));
@@ -207,7 +206,7 @@ fn seek_the_path(
     Ok(TestOutcome::Success)
 }
 
-fn run_tests(manifest_path: &Path) -> TestOutcome {
+fn verify(manifest_path: &Path, verification_cmd: Option<&str>) -> TestOutcome {
     // Tell cargo to return colored output, unless we are on Windows and the terminal
     // doesn't support it.
     let color_option = if use_ansi_colours() {
@@ -222,6 +221,7 @@ fn run_tests(manifest_path: &Path) -> TestOutcome {
             "build".into(),
             "--manifest-path".into(),
             manifest_path.into(),
+            "--all-targets".into(),
             "-q".into(),
             "--color".into(),
             color_option.into(),
@@ -239,21 +239,34 @@ fn run_tests(manifest_path: &Path) -> TestOutcome {
         }
     }
 
-    // `cargo test` then
+    // Now we run the verification command.
     {
-        let args: Vec<OsString> = vec![
-            "test".into(),
-            "--manifest-path".into(),
-            manifest_path.into(),
-            "-q".into(),
-            "--color".into(),
-            color_option.into(),
-        ];
+        let mut verification_cmd = match verification_cmd {
+            None => {
+                let args: Vec<OsString> = vec![
+                    "test".into(),
+                    "-q".into(),
+                    "--color".into(),
+                    color_option.into(),
+                ];
 
-        let output = std::process::Command::new("cargo")
-            .args(args)
-            .output()
-            .expect("Failed to run tests");
+                let mut cmd = std::process::Command::new("cargo");
+                cmd.args(args);
+                cmd
+            }
+            Some(cmd) => std::process::Command::new(cmd),
+        };
+        // We run the verification command from the exercise's directory.
+        verification_cmd.current_dir(
+            manifest_path
+                .parent()
+                .expect("Failed to get parent dir for manifest"),
+        );
+        let error_msg = format!(
+            "Failed to run the verification command: `{:?}`",
+            verification_cmd
+        );
+        let output = verification_cmd.output().expect(&error_msg);
 
         if !output.status.success() {
             return TestOutcome::Failure {

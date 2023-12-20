@@ -9,33 +9,48 @@ use std::fmt::Formatter;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Retrieve the path to the directory containing the exercises
-/// for the current collection of workshop-runner.
-pub fn get_exercises_dir() -> Result<PathBuf, anyhow::Error> {
-    #[derive(serde::Deserialize, Debug)]
-    /// The configuration for the current collection of workshop-runner.
-    struct ExercisesConfig {
-        /// The path to the directory containing the workshop-runner.
-        exercises_dir: PathBuf,
+#[derive(serde::Deserialize, Debug)]
+/// The configuration for the current collection of workshop-runner.
+pub struct ExercisesConfig {
+    /// The path to the directory containing the workshop-runner.
+    #[serde(default = "default_exercise_dir")]
+    exercises_dir: PathBuf,
+    /// The command that should be run to verify that the workshop-runner is working as expected.
+    #[serde(default)]
+    verification_command: Option<String>,
+}
+
+fn default_exercise_dir() -> PathBuf {
+    PathBuf::from("exercises")
+}
+
+impl ExercisesConfig {
+    pub fn load() -> Result<Self, anyhow::Error> {
+        let exercises_config_path = get_git_repository_root_dir()
+            .context("Failed to determine the root path of the current `git` repository")?
+            .join(".wr.toml");
+        let exercises_config = fs_err::read_to_string(&exercises_config_path).context(
+            "Failed to read the configuration for the current collection of workshop-runner",
+        )?;
+        let exercises_config: ExercisesConfig = toml::from_str(&exercises_config).with_context(|| {
+            format!(
+                "Failed to parse the configuration at `{}` for the current collection of workshop-runner",
+                exercises_config_path.to_string_lossy()
+            )
+        })?;
+        Ok(exercises_config)
     }
 
-    let git_root_dir = get_git_repository_root_dir()
-        .context("Failed to determine the root path of the current `git` repository")?;
-    let exercises_config_path = git_root_dir.join(".wr.toml");
-    let exercises_config = fs_err::read_to_string(&exercises_config_path).context(
-        "Failed to read the configuration for the current collection of workshop-runner",
-    )?;
-    let exercises_config: ExercisesConfig = toml::from_str(&exercises_config).with_context(|| {
-        format!(
-            "Failed to parse the configuration at `{}` for the current collection of workshop-runner",
-            exercises_config_path.to_string_lossy()
-        )
-    })?;
+    /// The path to the directory containing the exercises
+    /// for the current collection of workshop-runner.
+    pub fn exercises_dir(&self) -> &Path {
+        &self.exercises_dir
+    }
 
-    if exercises_config.exercises_dir.is_absolute() {
-        Ok(exercises_config.exercises_dir)
-    } else {
-        Ok(git_root_dir.join(exercises_config.exercises_dir))
+    /// The command that should be run to verify that the workshop-runner is working as expected.
+    /// If `None`, the workshop-runner will use `cargo test` as default.
+    pub fn verification_command(&self) -> Option<&str> {
+        self.verification_command.as_deref()
     }
 }
 
@@ -48,7 +63,7 @@ pub fn get_git_repository_root_dir() -> Result<PathBuf, anyhow::Error> {
     if cmd.status.success() {
         let path = String::from_utf8(cmd.stdout)
             .context("The root path of the current `git` repository is not valid UTF-8")?;
-        Ok(path.into())
+        Ok(path.trim().into())
     } else {
         Err(anyhow!(
             "Failed to determine the root path of the current `git` repository"
