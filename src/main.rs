@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use read_input::prelude::*;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use wr::{ExerciseCollection, ExerciseDefinition, OpenedExercise};
+use std::path::Path;
+use wr::{ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise};
 use yansi::Paint;
 
 /// A small CLI to manage test-driven workshops and tutorials in Rust.
@@ -16,16 +16,6 @@ use yansi::Paint;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Command {
-    /// Path to the exercise collection you want to work on.
-    /// Both absolute and relative paths are supported.
-    ///
-    /// E.g. `wr --path my_exercises` if `my_exercise` is a sub-directory of your current
-    /// working directory.
-    ///
-    /// It defaults to `exercises` if not specified.
-    #[arg(long, default_value = "exercises")]
-    pub path: PathBuf,
-
     #[arg(long)]
     /// Compile and run tests for all opened exercises, even if they have already succeeded
     /// in a past run.
@@ -65,7 +55,8 @@ fn main() -> Result<(), anyhow::Error> {
     if !use_ansi_colours() {
         Paint::disable();
     }
-    let mut exercises = ExerciseCollection::new(command.path)?;
+    let configuration = ExercisesConfig::load()?;
+    let mut exercises = ExerciseCollection::new(configuration.exercises_dir().to_path_buf())?;
 
     if let Some(command) = command.command {
         match command {
