@@ -222,6 +222,7 @@ fn run_tests(manifest_path: &Path) -> TestOutcome {
             "build".into(),
             "--manifest-path".into(),
             manifest_path.into(),
+            "--all-targets".into(),
             "-q".into(),
             "--color".into(),
             color_option.into(),
