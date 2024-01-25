@@ -21,6 +21,12 @@ pub struct Command {
     /// in a past run.
     pub no_skip: bool,
 
+    #[arg(long)]
+    /// By default, `wr` will run `cargo build` in quiet mode and it won't show you the logs
+    /// coming from the build process.
+    /// With this flag, those logs (and the progress bar) will be displayed.
+    pub verbose: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -114,6 +120,7 @@ fn main() -> Result<(), anyhow::Error> {
         &exercises,
         command.no_skip,
         configuration.verification_command(),
+        command.verbose,
     )? {
         println!(
             "\n\t{}\n\n{}\n\n",
@@ -176,6 +183,7 @@ fn seek_the_path(
     exercises: &ExerciseCollection,
     no_skip: bool,
     verification_cmd: Option<&str>,
+    verbose: bool,
 ) -> Result<TestOutcome, anyhow::Error> {
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
     for exercise in exercises.opened()? {
@@ -190,6 +198,7 @@ fn seek_the_path(
         let exercise_outcome = verify(
             &definition.manifest_path(exercises.exercises_dir()),
             verification_cmd,
+            verbose,
         );
         match exercise_outcome {
             TestOutcome::Success => {
@@ -206,7 +215,7 @@ fn seek_the_path(
     Ok(TestOutcome::Success)
 }
 
-fn verify(manifest_path: &Path, verification_cmd: Option<&str>) -> TestOutcome {
+fn verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) -> TestOutcome {
     // Tell cargo to return colored output, unless we are on Windows and the terminal
     // doesn't support it.
     let color_option = if use_ansi_colours() {
@@ -217,20 +226,23 @@ fn verify(manifest_path: &Path, verification_cmd: Option<&str>) -> TestOutcome {
 
     // `cargo build` first
     {
-        let args: Vec<OsString> = vec![
-            "build".into(),
-            "--manifest-path".into(),
-            manifest_path.into(),
-            "--all-targets".into(),
-            "-q".into(),
-            "--color".into(),
-            color_option.into(),
-        ];
+        let mut cmd = std::process::Command::new("cargo");
+        cmd.arg("build");
+        cmd.arg("--manifest-path");
+        cmd.arg(manifest_path);
+        cmd.arg("--all-targets");
+        cmd.arg("--color");
+        cmd.arg(color_option);
+        if !verbose {
+            cmd.arg("-q");
+        }
 
-        let output = std::process::Command::new("cargo")
-            .args(args)
-            .output()
-            .expect("Failed to run tests");
+        if verbose {
+            cmd.stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit());
+        }
+
+        let output = cmd.output().expect("Failed to run tests");
 
         if !output.status.success() {
             return TestOutcome::Failure {
@@ -243,12 +255,12 @@ fn verify(manifest_path: &Path, verification_cmd: Option<&str>) -> TestOutcome {
     {
         let mut verification_cmd = match verification_cmd {
             None => {
-                let args: Vec<OsString> = vec![
-                    "test".into(),
-                    "-q".into(),
-                    "--color".into(),
-                    color_option.into(),
-                ];
+                let mut args: Vec<OsString> =
+                    vec!["test".into(), "--color".into(), color_option.into()];
+
+                if !verbose {
+                    args.push("-q".into());
+                }
 
                 let mut cmd = std::process::Command::new("cargo");
                 cmd.args(args);
