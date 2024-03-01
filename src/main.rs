@@ -27,6 +27,14 @@ pub struct Command {
     /// With this flag, those logs (and the progress bar) will be displayed.
     pub verbose: bool,
 
+    #[arg(long)]
+    /// By default, `wr` will prompt you to open the next exercise if all the currently opened
+    /// exercises passed their tests.  
+    /// With this flag, `wr` will automatically open the next exercise if all the currently opened
+    /// exercises passed their tests. It'll then run the tests for the newly opened exercise.
+    /// If they pass, it'll open the next one, and so on.
+    pub keep_going: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -122,19 +130,28 @@ fn main() -> Result<(), anyhow::Error> {
         configuration.verification_command(),
         command.verbose,
     )? {
-        println!(
-            "\n\t{}\n\n{}\n\n",
-            info_style()
-                .paint("Meditate on your approach and return. Mountains are merely mountains.\n\n"),
-            cargo_style().paint(&String::from_utf8_lossy(&details).to_string())
-        );
-        // FIXME: return a non-zero exit code.
-        return Ok(());
+        print_failure_message(&details);
+        std::process::exit(1);
     };
 
     // If all the currently opened workshop-runner passed their checks, we open the next one (if it exists).
-    match exercises.next()? {
-        Some(next_exercise) => {
+    while let Some(next_exercise) = exercises.next()? {
+        if command.keep_going {
+            let next_exercise = exercises
+                .open_next()
+                .expect("Failed to open the next exercise");
+            let exercise_outcome = verify(
+                &exercises,
+                &next_exercise,
+                configuration.verification_command(),
+                command.verbose,
+            )?;
+            if let TestOutcome::Failure { details } = exercise_outcome {
+                print_failure_message(&details);
+                std::process::exit(1);
+            };
+            continue;
+        } else {
             println!(
                 "\t{}\n",
                 info_style().paint(
@@ -159,15 +176,14 @@ fn main() -> Result<(), anyhow::Error> {
                     .expect("Failed to open the next exercise");
                 print_opened_message(&next_exercise, exercises.exercises_dir());
             }
-        }
-        None => {
-            println!(
-                "{}\n\t{}\n",
-                success_style().paint("\n\tThere will be no more tasks."),
-                info_style().paint("What is the sound of one hand clapping (for you)? 🌟")
-            );
+            return Ok(());
         }
     }
+    println!(
+        "{}\n\t{}\n",
+        success_style().paint("\n\tThere will be no more tasks."),
+        info_style().paint("What is the sound of one hand clapping (for you)? 🌟")
+    );
     Ok(())
 }
 
@@ -195,27 +211,39 @@ fn seek_the_path(
             );
             continue;
         }
-        let exercise_outcome = verify(
-            &definition.manifest_path(exercises.exercises_dir()),
-            verification_cmd,
-            verbose,
-        );
-        match exercise_outcome {
-            TestOutcome::Success => {
-                println!("{}", success_style().paint(format!("\t🚀 {}", definition)));
-                exercises.mark_as_solved(&exercise)?;
-            }
-            TestOutcome::Failure { details } => {
-                println!("{}", failure_style().paint(format!("\t❌ {}", definition)));
-                exercises.mark_as_unsolved(&exercise)?;
-                return Ok(TestOutcome::Failure { details });
-            }
+        let exercise_outcome = verify(exercises, &definition, verification_cmd, verbose)?;
+        if let TestOutcome::Failure { details } = exercise_outcome {
+            return Ok(TestOutcome::Failure { details });
         }
     }
     Ok(TestOutcome::Success)
 }
 
-fn verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) -> TestOutcome {
+fn verify(
+    exercises: &ExerciseCollection,
+    definition: &ExerciseDefinition,
+    verification_cmd: Option<&str>,
+    verbose: bool,
+) -> Result<TestOutcome, anyhow::Error> {
+    let exercise_outcome = _verify(
+        &definition.manifest_path(exercises.exercises_dir()),
+        verification_cmd,
+        verbose,
+    );
+    match &exercise_outcome {
+        TestOutcome::Success => {
+            println!("{}", success_style().paint(format!("\t🚀 {}", definition)));
+            exercises.mark_as_solved(&definition)?;
+        }
+        TestOutcome::Failure { .. } => {
+            println!("{}", failure_style().paint(format!("\t❌ {}", definition)));
+            exercises.mark_as_unsolved(&definition)?;
+        }
+    }
+    Ok(exercise_outcome)
+}
+
+fn _verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) -> TestOutcome {
     // Tell cargo to return colored output, unless we are on Windows and the terminal
     // doesn't support it.
     let color_option = if use_ansi_colours() {
@@ -308,6 +336,15 @@ fn print_opened_message(exercise: &ExerciseDefinition, exercises_dir: &Path) {
         relative_path
     );
     println!("{}", next_style().paint(open_msg));
+}
+
+fn print_failure_message(details: &[u8]) {
+    println!(
+        "\n\t{}\n\n{}\n\n",
+        info_style()
+            .paint("Meditate on your approach and return. Mountains are merely mountains.\n\n"),
+        cargo_style().paint(&String::from_utf8_lossy(details).to_string())
+    );
 }
 
 pub fn info_style() -> yansi::Style {

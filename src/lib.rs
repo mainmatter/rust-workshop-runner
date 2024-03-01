@@ -154,28 +154,22 @@ impl ExerciseCollection {
     }
 
     /// Record in the database that an exercise was solved, so that it can be skipped next time.
-    pub fn mark_as_solved(&self, exercise: &OpenedExercise) -> Result<(), anyhow::Error> {
+    pub fn mark_as_solved(&self, exercise: &ExerciseDefinition) -> Result<(), anyhow::Error> {
         self.connection
             .execute(
                 "UPDATE open_exercises SET solved = 1 WHERE chapter = ?1 AND exercise = ?2",
-                params![
-                    exercise.definition.chapter(),
-                    exercise.definition.exercise(),
-                ],
+                params![exercise.chapter(), exercise.exercise(),],
             )
             .context("Failed to mark exercise as solved")?;
         Ok(())
     }
 
     /// Record in the database that an exercise was not solved, so that it won't be skipped next time.
-    pub fn mark_as_unsolved(&self, exercise: &OpenedExercise) -> Result<(), anyhow::Error> {
+    pub fn mark_as_unsolved(&self, exercise: &ExerciseDefinition) -> Result<(), anyhow::Error> {
         self.connection
             .execute(
                 "UPDATE open_exercises SET solved = 0 WHERE chapter = ?1 AND exercise = ?2",
-                params![
-                    exercise.definition.chapter(),
-                    exercise.definition.exercise(),
-                ],
+                params![exercise.chapter(), exercise.exercise(),],
             )
             .context("Failed to mark exercise as unsolved")?;
         Ok(())
