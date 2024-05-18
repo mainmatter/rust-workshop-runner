@@ -217,7 +217,7 @@ fn seek_the_path(
         )?;
         if let TestOutcome::Failure { details } = exercise_outcome {
             if exercises_config.auto_open_ide() {
-                definition.open_ide(exercises.exercises_dir());
+                definition.open_ide_to(exercises.exercises_dir());
             }
 
             return Ok(TestOutcome::Failure { details });
@@ -227,11 +227,11 @@ fn seek_the_path(
 }
 
 trait OpenIDE {
-    fn open_ide(&self, root: &Path);
+    fn open_ide_to(&self, root: &Path);
 }
 
 impl OpenIDE for ExerciseDefinition {
-    fn open_ide(&self, root: &Path) {
+    fn open_ide_to(&self, root: &Path) {
         let dir = self.manifest_folder_path(root);
         let _ = read_dir(dir.join("src")).and_then(|dir| {
             for entry in dir {
@@ -241,7 +241,9 @@ impl OpenIDE for ExerciseDefinition {
                     if let Ok(mac_bundle_id) = std::env::var("__CFBundleIdentifier") {
                         if let Some(ide) = match mac_bundle_id.to_lowercase() {
                             id if id.starts_with("com.jetbrains.rustrover") => Some("rustrover"),
+                            id if id.starts_with("com.jetbrains.intellij") => Some("idea"),
                             id if id.starts_with("com.microsoft.vscode") => Some("code"),
+                            id if id.starts_with("dev.zed.zed") => Some("zed"),
                             _ => None,
                         } {
                             let _ = std::process::Command::new(ide).arg(entry.path()).spawn();
