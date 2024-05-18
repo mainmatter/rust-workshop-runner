@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use fs_err::read_dir;
 use read_input::prelude::*;
 use std::ffi::OsString;
 use std::path::Path;
@@ -29,7 +30,7 @@ pub struct Command {
 
     #[arg(long)]
     /// By default, `wr` will prompt you to open the next exercise if all the currently opened
-    /// exercises passed their tests.  
+    /// exercises passed their tests.
     /// With this flag, `wr` will automatically open the next exercise if all the currently opened
     /// exercises passed their tests. It'll then run the tests for the newly opened exercise.
     /// If they pass, it'll open the next one, and so on.
@@ -124,12 +125,9 @@ fn main() -> Result<(), anyhow::Error> {
 
     // If no command was specified, we verify the user's progress on the workshop-runner that have already
     // been opened.
-    if let TestOutcome::Failure { details } = seek_the_path(
-        &exercises,
-        command.no_skip,
-        configuration.verification_command(),
-        command.verbose,
-    )? {
+    if let TestOutcome::Failure { details } =
+        seek_the_path(&exercises, command.no_skip, &configuration, command.verbose)?
+    {
         print_failure_message(&details);
         std::process::exit(1);
     };
@@ -198,7 +196,7 @@ fn parse_bool(s: &str) -> Option<bool> {
 fn seek_the_path(
     exercises: &ExerciseCollection,
     no_skip: bool,
-    verification_cmd: Option<&str>,
+    exercises_config: &ExercisesConfig,
     verbose: bool,
 ) -> Result<TestOutcome, anyhow::Error> {
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
@@ -211,12 +209,50 @@ fn seek_the_path(
             );
             continue;
         }
-        let exercise_outcome = verify(exercises, &definition, verification_cmd, verbose)?;
+        let exercise_outcome = verify(
+            exercises,
+            &definition,
+            exercises_config.verification_command(),
+            verbose,
+        )?;
         if let TestOutcome::Failure { details } = exercise_outcome {
+            if exercises_config.auto_open_ide() {
+                definition.open_ide(exercises.exercises_dir());
+            }
+
             return Ok(TestOutcome::Failure { details });
         }
     }
     Ok(TestOutcome::Success)
+}
+
+trait OpenIDE {
+    fn open_ide(&self, root: &Path);
+}
+
+impl OpenIDE for ExerciseDefinition {
+    fn open_ide(&self, root: &Path) {
+        let dir = self.manifest_folder_path(root);
+        let _ = read_dir(dir.join("src")).and_then(|dir| {
+            for entry in dir {
+                let entry = entry?;
+                // open the first file in the src directory
+                if entry.metadata()?.is_file() {
+                    if let Ok(mac_bundle_id) = std::env::var("__CFBundleIdentifier") {
+                        if let Some(ide) = match mac_bundle_id.to_lowercase() {
+                            id if id.starts_with("com.jetbrains.rustrover") => Some("rustrover"),
+                            id if id.starts_with("com.microsoft.vscode") => Some("code"),
+                            _ => None,
+                        } {
+                            let _ = std::process::Command::new(ide).arg(entry.path()).spawn();
+                        }
+                    }
+                    return Ok(());
+                }
+            }
+            Ok(())
+        });
+    }
 }
 
 fn verify(
