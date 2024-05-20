@@ -207,7 +207,7 @@ fn seek_the_path(
         if *solved && !no_skip {
             println!(
                 "{}",
-                info_style().paint(format!("\t✅ {} (Skipped)", definition))
+                info_style().paint(format!("\t✅ {} (Passed)", definition))
             );
             continue;
         }
