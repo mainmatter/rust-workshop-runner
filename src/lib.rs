@@ -18,6 +18,9 @@ pub struct ExercisesConfig {
     /// The command that should be run to verify that the workshop-runner is working as expected.
     #[serde(default)]
     verification_command: Option<String>,
+    /// Whether the IDE should be opened automatically when the exercise check is failed.
+    #[serde(default)]
+    auto_open_ide: Option<bool>,
 }
 
 fn default_exercise_dir() -> PathBuf {
@@ -51,6 +54,11 @@ impl ExercisesConfig {
     /// If `None`, the workshop-runner will use `cargo test` as default.
     pub fn verification_command(&self) -> Option<&str> {
         self.verification_command.as_deref()
+    }
+
+    /// The default behavior is to not open the IDE automatically.
+    pub fn auto_open_ide(&self) -> bool {
+        self.auto_open_ide.unwrap_or(false)
     }
 }
 
