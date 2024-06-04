@@ -145,6 +145,9 @@ fn main() -> Result<(), anyhow::Error> {
                 command.verbose,
             )?;
             if let TestOutcome::Failure { details } = exercise_outcome {
+                if configuration.auto_open_ide() {
+                    next_exercise.open_ide_to(exercises.exercises_dir());
+                }
                 print_failure_message(&details);
                 std::process::exit(1);
             };
@@ -172,6 +175,9 @@ fn main() -> Result<(), anyhow::Error> {
                 let next_exercise = exercises
                     .open_next()
                     .expect("Failed to open the next exercise");
+                if configuration.auto_open_ide() {
+                    next_exercise.open_ide_to(exercises.exercises_dir());
+                }
                 print_opened_message(&next_exercise, exercises.exercises_dir());
             }
             return Ok(());
@@ -247,6 +253,11 @@ impl OpenIDE for ExerciseDefinition {
                             _ => None,
                         } {
                             let _ = std::process::Command::new(ide).arg(entry.path()).spawn();
+                        } else {
+                            // fallback to open
+                            let _ = std::env::var("EDITOR").map(|editor| {
+                                std::process::Command::new(editor).arg(entry.path()).spawn()
+                            });
                         }
                     }
                     return Ok(());
