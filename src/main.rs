@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use read_input::prelude::*;
 use std::ffi::OsString;
 use std::path::Path;
-use wr::{ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise};
+use wr::{ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise, Verification};
 use yansi::Paint;
 
 /// A small CLI to manage test-driven workshops and tutorials in Rust.
@@ -19,7 +19,7 @@ pub struct Command {
     #[arg(long)]
     /// Compile and run tests for all opened exercises, even if they have already succeeded
     /// in a past run.
-    pub no_skip: bool,
+    pub recheck: bool,
 
     #[arg(long)]
     /// By default, `wr` will run `cargo build` in quiet mode and it won't show you the logs
@@ -124,13 +124,13 @@ fn main() -> Result<(), anyhow::Error> {
 
     // If no command was specified, we verify the user's progress on the workshop-runner that have already
     // been opened.
-    if let TestOutcome::Failure { details } = seek_the_path(
+    if let TestOutcome::Failure { command, details } = seek_the_path(
         &exercises,
-        command.no_skip,
-        configuration.verification_command(),
+        command.recheck,
+        configuration.verification(),
         command.verbose,
     )? {
-        print_failure_message(&details);
+        print_failure_message(&command, &details);
         std::process::exit(1);
     };
 
@@ -143,11 +143,11 @@ fn main() -> Result<(), anyhow::Error> {
             let exercise_outcome = verify(
                 &exercises,
                 &next_exercise,
-                configuration.verification_command(),
+                configuration.verification(),
                 command.verbose,
             )?;
-            if let TestOutcome::Failure { details } = exercise_outcome {
-                print_failure_message(&details);
+            if let TestOutcome::Failure { command, details } = exercise_outcome {
+                print_failure_message(&command, &details);
                 std::process::exit(1);
             };
             continue;
@@ -197,23 +197,23 @@ fn parse_bool(s: &str) -> Option<bool> {
 
 fn seek_the_path(
     exercises: &ExerciseCollection,
-    no_skip: bool,
-    verification_cmd: Option<&str>,
+    recheck: bool,
+    verification: &[Verification],
     verbose: bool,
 ) -> Result<TestOutcome, anyhow::Error> {
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
     for exercise in exercises.opened()? {
         let OpenedExercise { definition, solved } = &exercise;
-        if *solved && !no_skip {
+        if *solved && !recheck {
             println!(
                 "{}",
-                info_style().paint(format!("\t✅ {} (Skipped)", definition))
+                info_style().paint(format!("\t⏩ {} (Not rechecked)", definition))
             );
             continue;
         }
-        let exercise_outcome = verify(exercises, &definition, verification_cmd, verbose)?;
-        if let TestOutcome::Failure { details } = exercise_outcome {
-            return Ok(TestOutcome::Failure { details });
+        let exercise_outcome = verify(exercises, &definition, verification, verbose)?;
+        if let TestOutcome::Failure { command, details } = exercise_outcome {
+            return Ok(TestOutcome::Failure { command, details });
         }
     }
     Ok(TestOutcome::Success)
@@ -222,12 +222,18 @@ fn seek_the_path(
 fn verify(
     exercises: &ExerciseCollection,
     definition: &ExerciseDefinition,
-    verification_cmd: Option<&str>,
+    verification: &[Verification],
     verbose: bool,
 ) -> Result<TestOutcome, anyhow::Error> {
+    let exercise_config = definition.config(exercises.exercises_dir())?;
+    // Exercise-specific config takes precedence over the global one, if specified.
+    let verification = exercise_config
+        .as_ref()
+        .map(|c| c.verification.as_slice())
+        .unwrap_or(verification);
     let exercise_outcome = _verify(
         &definition.manifest_path(exercises.exercises_dir()),
-        verification_cmd,
+        verification,
         verbose,
     );
     match &exercise_outcome {
@@ -243,7 +249,7 @@ fn verify(
     Ok(exercise_outcome)
 }
 
-fn _verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) -> TestOutcome {
+fn _verify(manifest_path: &Path, verification: &[Verification], verbose: bool) -> TestOutcome {
     // Tell cargo to return colored output, unless we are on Windows and the terminal
     // doesn't support it.
     let color_option = if use_ansi_colours() {
@@ -270,10 +276,11 @@ fn _verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) 
                 .stderr(std::process::Stdio::inherit());
         }
 
-        let output = cmd.output().expect("Failed to run tests");
+        let output = cmd.output().expect("Failed to build the project");
 
         if !output.status.success() {
             return TestOutcome::Failure {
+                command: format!("{:?}", cmd),
                 details: [output.stderr, output.stdout].concat(),
             };
         }
@@ -281,37 +288,44 @@ fn _verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) 
 
     // Now we run the verification command.
     {
-        let mut verification_cmd = match verification_cmd {
-            None => {
-                let mut args: Vec<OsString> =
-                    vec!["test".into(), "--color".into(), color_option.into()];
-
-                if !verbose {
-                    args.push("-q".into());
-                }
-
-                let mut cmd = std::process::Command::new("cargo");
-                cmd.args(args);
+        let mut verification_commands: Vec<_> = verification
+            .iter()
+            .map(|v| {
+                let mut cmd = std::process::Command::new(&v.command);
+                cmd.args(&v.args);
                 cmd
-            }
-            Some(cmd) => std::process::Command::new(cmd),
-        };
-        // We run the verification command from the exercise's directory.
-        verification_cmd.current_dir(
-            manifest_path
-                .parent()
-                .expect("Failed to get parent dir for manifest"),
-        );
-        let error_msg = format!(
-            "Failed to run the verification command: `{:?}`",
-            verification_cmd
-        );
-        let output = verification_cmd.output().expect(&error_msg);
+            })
+            .collect();
+        if verification_commands.is_empty() {
+            let mut args: Vec<OsString> =
+                vec!["test".into(), "--color".into(), color_option.into()];
 
-        if !output.status.success() {
-            return TestOutcome::Failure {
-                details: [output.stderr, output.stdout].concat(),
-            };
+            if !verbose {
+                args.push("-q".into());
+            }
+
+            let mut cmd = std::process::Command::new("cargo");
+            cmd.args(args);
+            verification_commands.push(cmd);
+        }
+        verification_commands.iter_mut().for_each(|cmd| {
+            // We run verification commands from the exercise's directory.
+            cmd.current_dir(
+                manifest_path
+                    .parent()
+                    .expect("Failed to get parent dir for manifest"),
+            );
+        });
+        for mut verification_cmd in verification_commands {
+            let error_msg = format!("Failed to run: `{:?}`", verification_cmd);
+            let output = verification_cmd.output().expect(&error_msg);
+
+            if !output.status.success() {
+                return TestOutcome::Failure {
+                    command: format!("{:?}", verification_cmd),
+                    details: [output.stderr, output.stdout].concat(),
+                };
+            }
         }
     }
 
@@ -321,7 +335,7 @@ fn _verify(manifest_path: &Path, verification_cmd: Option<&str>, verbose: bool) 
 #[derive(PartialEq)]
 enum TestOutcome {
     Success,
-    Failure { details: Vec<u8> },
+    Failure { command: String, details: Vec<u8> },
 }
 
 fn print_opened_message(exercise: &ExerciseDefinition, exercises_dir: &Path) {
@@ -338,12 +352,16 @@ fn print_opened_message(exercise: &ExerciseDefinition, exercises_dir: &Path) {
     println!("{}", next_style().paint(open_msg));
 }
 
-fn print_failure_message(details: &[u8]) {
+fn print_failure_message(command: &str, details: &[u8]) {
     println!(
-        "\n\t{}\n\n{}\n\n",
+        "\n\t{}\n\nFailed to run:\n\t{}\nOutput:\n{}\n",
         info_style()
             .paint("Meditate on your approach and return. Mountains are merely mountains.\n\n"),
-        cargo_style().paint(&String::from_utf8_lossy(details).to_string())
+        cargo_style().paint(&command),
+        cargo_style().paint(textwrap::indent(
+            &String::from_utf8_lossy(details).to_string(),
+            "\t"
+        ))
     );
 }
 

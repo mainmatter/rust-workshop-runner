@@ -17,7 +17,25 @@ pub struct ExercisesConfig {
     exercises_dir: PathBuf,
     /// The command that should be run to verify that the workshop-runner is working as expected.
     #[serde(default)]
-    verification_command: Option<String>,
+    verification: Vec<Verification>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+/// The configuration for a specific exercise.
+pub struct ExerciseConfig {
+    /// The commands that should be run to verify this exercise.
+    /// It overrides the verification command specified in the collection configuration, if any.
+    #[serde(default)]
+    pub verification: Vec<Verification>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct Verification {
+    /// The command that should be run to verify that the workshop-runner is working as expected.
+    pub command: String,
+    /// The arguments that should be passed to the verification command.
+    #[serde(default)]
+    pub args: Vec<String>,
 }
 
 fn default_exercise_dir() -> PathBuf {
@@ -47,10 +65,10 @@ impl ExercisesConfig {
         &self.exercises_dir
     }
 
-    /// The command that should be run to verify that the workshop-runner is working as expected.
-    /// If `None`, the workshop-runner will use `cargo test` as default.
-    pub fn verification_command(&self) -> Option<&str> {
-        self.verification_command.as_deref()
+    /// The command(s) that should be run to verify that exercises are correct.
+    /// If empty, workshop-runner will use `cargo test` as default.
+    pub fn verification(&self) -> &[Verification] {
+        &self.verification
     }
 }
 
@@ -328,12 +346,32 @@ impl ExerciseDefinition {
         exercises_dir.join(self.chapter()).join(self.exercise())
     }
 
+    /// The configuration for the current exercise, if any.
+    pub fn config(&self, exercises_dir: &Path) -> Result<Option<ExerciseConfig>, anyhow::Error> {
+        let exercise_config = self.manifest_folder_path(exercises_dir).join(".wr.toml");
+        if !exercise_config.exists() {
+            return Ok(None);
+        }
+        let exercise_config = fs_err::read_to_string(&exercise_config).context(format!(
+            "Failed to read the configuration for the exercise `{}`",
+            self.exercise()
+        ))?;
+        let exercise_config: ExerciseConfig =
+            toml::from_str(&exercise_config).with_context(|| {
+                format!(
+                    "Failed to parse the configuration for the exercise `{}`",
+                    self.exercise()
+                )
+            })?;
+        Ok(Some(exercise_config))
+    }
+
     /// The number+name of the chapter that contains this exercise.
     pub fn chapter(&self) -> String {
         format!("{:02}_{}", self.chapter_number, self.chapter_name)
     }
 
-    /// The number+name of the this exercise.
+    /// The number+name of this exercise.
     pub fn exercise(&self) -> String {
         format!("{:02}_{}", self.number, self.name)
     }
