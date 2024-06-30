@@ -60,6 +60,13 @@ pub enum Commands {
         #[arg(long)]
         exercise: String,
     },
+    /// Show the path to the first open and unsolved exercise (if one exists)
+    ///
+    /// Intended to facilitate use in other commands like `cargo watch` or `bacon`
+    /// Non-Zero exit code on error or no currently open exercises
+    /// E.g. `p=$(wr next-path) && cargo watch -x test --workdir "$p"`
+    /// E.g. `p=$(wr next-path) && bacon test --path "$p"`
+    NextPath,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -117,6 +124,23 @@ fn main() -> Result<(), anyhow::Error> {
 
                 exercises.open(&exercise)?;
                 print_opened_message(&exercise, exercises.exercises_dir());
+            }
+            Commands::NextPath => {
+                // Find the first open and unsolved exercise
+                for exercise in exercises.opened()? {
+                    let OpenedExercise { definition, solved } = &exercise;
+                    if *solved {
+                        // Skipping already solved
+                        continue;
+                    }
+                    let relative_path = definition.manifest_folder_path(exercises.exercises_dir());
+
+                    print!("{}", relative_path.display());
+                    std::process::exit(0); // Path printed execution complete
+                }
+                // No exercise found
+                eprintln!("No open unsolved exercise found");
+                std::process::exit(1);
             }
         }
         return Ok(());
