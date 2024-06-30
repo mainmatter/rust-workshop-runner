@@ -28,3 +28,4 @@ rusqlite = { version = "0.29.0", features = ["bundled"] }
 serde = { version = "1.0.183", features = ["derive"] }
 toml = "0.7.6"
 yansi = "0.5.1"
+textwrap = "0.16.1"
