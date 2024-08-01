@@ -101,7 +101,7 @@ pub struct ExerciseCollection {
 impl ExerciseCollection {
     pub fn new(exercises_dir: PathBuf) -> Result<Self, anyhow::Error> {
         let chapters = read_dir(&exercises_dir)
-            .context("Failed to read the workshop-runner directory")?
+            .context("Failed to read the exercises directory")?
             .filter_map(|entry| {
                 let Ok(entry) = entry else {
                     return None;
@@ -166,12 +166,24 @@ impl ExerciseCollection {
 
     /// Return the next exercise that should be opened, if we are going through the workshop-runner
     /// in the expected order.
-    pub fn next(&self) -> Result<Option<ExerciseDefinition>, anyhow::Error> {
+    pub fn next(&mut self) -> Result<Option<ExerciseDefinition>, anyhow::Error> {
         let opened = opened_exercises(&self.connection)?
             .into_iter()
             .map(|e| e.definition)
             .collect();
-        Ok(self.exercises.difference(&opened).next().cloned())
+        let unsolved = self
+            .exercises
+            .difference(&opened)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        for next in unsolved {
+            if next.exists(&self.exercises_dir) {
+                return Ok(Some(next));
+            } else {
+                self.close(&next)?;
+            }
+        }
+        Ok(None)
     }
 
     /// Record in the database that an exercise was solved, so that it can be skipped next time.
@@ -210,10 +222,21 @@ impl ExerciseCollection {
         Ok(())
     }
 
+    /// Close a specific exercise.
+    pub fn close(&mut self, exercise: &ExerciseDefinition) -> Result<(), anyhow::Error> {
+        self.connection
+            .execute(
+                "DELETE FROM open_exercises WHERE chapter = ?1 AND exercise = ?2",
+                params![exercise.chapter(), exercise.exercise(),],
+            )
+            .context("Failed to close an exercise")?;
+        Ok(())
+    }
+
     /// Open the next exercise, assuming we are going through the workshop-runner in order.
     pub fn open_next(&mut self) -> Result<ExerciseDefinition, anyhow::Error> {
         let Some(next) = self.next()? else {
-            bail!("There are no more workshop-runner to open")
+            bail!("There are no more exercises to open")
         };
         self.open(&next)?;
         Ok(next)
@@ -387,6 +410,12 @@ impl ExerciseDefinition {
     /// The number of the chapter that contains this exercise.
     pub fn chapter_number(&self) -> u16 {
         self.chapter_number
+    }
+
+    /// Verify that the exercise exists.
+    /// It may have been removed from the repository after an update to the current course.
+    pub fn exists(&self, exercises_dir: &Path) -> bool {
+        self.manifest_path(exercises_dir).exists()
     }
 }
 

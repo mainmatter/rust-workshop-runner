@@ -125,7 +125,7 @@ fn main() -> Result<(), anyhow::Error> {
     // If no command was specified, we verify the user's progress on the workshop-runner that have already
     // been opened.
     if let TestOutcome::Failure { command, details } = seek_the_path(
-        &exercises,
+        &mut exercises,
         command.recheck,
         configuration.verification(),
         command.verbose,
@@ -196,7 +196,7 @@ fn parse_bool(s: &str) -> Option<bool> {
 }
 
 fn seek_the_path(
-    exercises: &ExerciseCollection,
+    exercises: &mut ExerciseCollection,
     recheck: bool,
     verification: &[Verification],
     verbose: bool,
@@ -204,6 +204,10 @@ fn seek_the_path(
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
     for exercise in exercises.opened()? {
         let OpenedExercise { definition, solved } = &exercise;
+        if !exercise.definition.exists(exercises.exercises_dir()) {
+            exercises.close(&definition)?;
+            continue;
+        }
         if *solved && !recheck {
             println!(
                 "{}",
