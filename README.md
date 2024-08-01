@@ -59,6 +59,16 @@ and move forward in the workshop.
 You can also navigate to a specific exercise and then run `wr check` from inside its directory
 to verify its solution, regardless of what the current exercise is.
 
+### Continuous checking
+
+You can combine `wr` with [`cargo-watch`](https://crates.io/crates/cargo-watch) to re-check your solution every time you
+make a change
+to the code:
+
+```bash
+cargo watch -- wr
+```
+
 ## Folder structure
 
 `wr` expects the following structure for the workshop repository:
