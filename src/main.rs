@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use fs_err::PathExt;
 use read_input::prelude::*;
 use std::ffi::OsString;
 use std::path::Path;
@@ -60,6 +61,9 @@ pub enum Commands {
         #[arg(long)]
         exercise: String,
     },
+    /// Run the tests for the exercise in the current directory.
+    /// It errors if the current directory is not an exercise.
+    Check,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -70,6 +74,7 @@ fn main() -> Result<(), anyhow::Error> {
         Paint::disable();
     }
     let configuration = ExercisesConfig::load()?;
+    let verbose = command.verbose;
     let mut exercises = ExerciseCollection::new(configuration.exercises_dir().to_path_buf())?;
 
     if let Some(command) = command.command {
@@ -118,6 +123,25 @@ fn main() -> Result<(), anyhow::Error> {
                 exercises.open(&exercise)?;
                 print_opened_message(&exercise, exercises.exercises_dir());
             }
+            Commands::Check => {
+                let current_dir = std::env::current_dir()?.fs_err_canonicalize()?;
+                let definition = exercises
+                    .iter()
+                    .find(|k| {
+                        let manifest_folder = k
+                            .manifest_folder_path(exercises.exercises_dir())
+                            .fs_err_canonicalize()
+                            .expect("Failed to canonicalize manifest folder path");
+                        manifest_folder == current_dir
+                    })
+                    .ok_or_else(|| anyhow::anyhow!("The current directory is not an exercise"))?;
+                verify(
+                    &exercises,
+                    &definition,
+                    configuration.verification(),
+                    verbose,
+                )?;
+            }
         }
         return Ok(());
     }
@@ -128,7 +152,7 @@ fn main() -> Result<(), anyhow::Error> {
         &mut exercises,
         command.recheck,
         configuration.verification(),
-        command.verbose,
+        verbose,
     )? {
         print_failure_message(&command, &details);
         std::process::exit(1);
