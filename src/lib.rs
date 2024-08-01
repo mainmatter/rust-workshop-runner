@@ -10,9 +10,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(serde::Deserialize, Debug)]
-/// The configuration for the current collection of workshop-runner.
+/// The configuration for the current collection of exercises.
 pub struct ExercisesConfig {
-    /// The path to the directory containing the workshop-runner.
+    /// The path to the directory containing the exercises, relative
+    /// to the root of the repository.
     #[serde(default = "default_exercise_dir")]
     exercises_dir: PathBuf,
     /// The command that should be run to verify that the workshop-runner is working as expected.
@@ -44,18 +45,20 @@ fn default_exercise_dir() -> PathBuf {
 
 impl ExercisesConfig {
     pub fn load() -> Result<Self, anyhow::Error> {
-        let exercises_config_path = get_git_repository_root_dir()
-            .context("Failed to determine the root path of the current `git` repository")?
-            .join(".wr.toml");
+        let root_path = get_git_repository_root_dir()
+            .context("Failed to determine the root path of the current `git` repository")?;
+        let exercises_config_path = root_path.join(".wr.toml");
         let exercises_config = fs_err::read_to_string(&exercises_config_path).context(
             "Failed to read the configuration for the current collection of workshop-runner",
         )?;
-        let exercises_config: ExercisesConfig = toml::from_str(&exercises_config).with_context(|| {
+        let mut exercises_config: ExercisesConfig = toml::from_str(&exercises_config).with_context(|| {
             format!(
                 "Failed to parse the configuration at `{}` for the current collection of workshop-runner",
                 exercises_config_path.to_string_lossy()
             )
         })?;
+        // The path to the exercises directory is relative to the root of the repository.
+        exercises_config.exercises_dir = root_path.join(&exercises_config.exercises_dir);
         Ok(exercises_config)
     }
 
@@ -75,9 +78,9 @@ impl ExercisesConfig {
 /// Retrieve the path to the root directory of the current `git` repository.
 pub fn get_git_repository_root_dir() -> Result<PathBuf, anyhow::Error> {
     let cmd = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", "--show-cdup"])
         .output()
-        .context("Failed to run a `git` command (`git rev-parse --show-toplevel`) to determine the root path of the current `git` repository")?;
+        .context("Failed to run a `git` command (`git rev-parse --show-cdup`) to determine the root path of the current `git` repository")?;
     if cmd.status.success() {
         let path = String::from_utf8(cmd.stdout)
             .context("The root path of the current `git` repository is not valid UTF-8")?;
