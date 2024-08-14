@@ -69,6 +69,12 @@ to the code:
 cargo watch -- wr
 ```
 
+This combines well with the `--keep-going` flag, which makes `wr` open the next exercise upon completion of the current one:
+
+```bash
+cargo watch -- wr --keep-going
+```
+
 ## Folder structure
 
 `wr` expects the following structure for the workshop repository:
