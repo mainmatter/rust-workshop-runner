@@ -1,0 +1,21 @@
+{
+  "build": {
+    "path_prefix": "rust-workshop-runner"
+  },
+  "marketing": {
+    "analytics": {
+      "plausible": {
+        "domain": "mainmatter.github.io"
+      }
+    }
+  },
+  "components": {
+    "artifacts": {
+      "package_managers": {
+        "preferred": {
+          "cargo": "cargo install --locked workshop-runner"
+        }
+      }
+    }
+  }
+}
