@@ -28,11 +28,16 @@
 It is designed to be used in conjunction with a workshop repository, which contains a series of exercises to be solved
 by the workshop participants.
 
-> [!NOTE]
 > This workshop runner has been developed by [Mainmatter](https://mainmatter.com/rust-consulting/) to support
 > our [hands-on Rust workshops](https://mainmatter.com/services/workshops/rust/).
 > Check out our [landing page](https://mainmatter.com/rust-consulting/) if you're looking for Rust consulting or
 > training!
+
+<div class="oranda-hide">
+## How to install
+
+Check out the instructions on the [release page](https://mainmatter.github.io/rust-workshop-runner/).
+</div>
 
 ## How it works
 
