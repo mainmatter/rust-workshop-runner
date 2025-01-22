@@ -1,15 +1,30 @@
-<h1 align="center">wr</h1>
-<div align="center">
- <strong>
-   A Rust workshop runner
- </strong>
+<div class="oranda-hide">
+    <h1 align="center">wr</h1>
+    <div align="center">
+        <strong>
+        A Rust workshop runner
+        </strong>
+    </div>
+
+    <div align="center">
+        <!-- Crates version -->
+        <a href="https://crates.io/crates/cargo-px">
+            <img src="https://img.shields.io/crates/v/cargo-px.svg?style=flat-square"
+            alt="Crates.io version" />
+        </a>
+        <!-- Downloads -->
+        <a href="https://crates.io/crates/cargo-px">
+            <img src="https://img.shields.io/crates/d/cargo-px.svg?style=flat-square"
+            alt="Download" />
+        </a>
+    </div>
 </div>
 
 <br />
 
 ![demo](demo.gif)
 
-`wr` is a CLI to drive test-driven workshops written in Rust.  
+`wr` is a CLI to drive test-driven workshops written in Rust.
 It is designed to be used in conjunction with a workshop repository, which contains a series of exercises to be solved
 by the workshop participants.
 
@@ -25,7 +40,7 @@ by the workshop participants.
 >
 > Richard Feynman
 
-A test-driven workshop is structured as a series of exercises.  
+A test-driven workshop is structured as a series of exercises.
 Each exercise is a Rust project with a set of tests that verify the correctness of the solution.
 
 `wr` will run the tests for the current exercise and, if they pass, allow you to move on to the next exercise while
@@ -97,4 +112,3 @@ exercises-dir = "my-top-level-folder"
 ```
 
 You can refer to [rust-telemetry-workshop](https://github.com/mainmatter/rust-telemetry-workshop) as an example.
-
