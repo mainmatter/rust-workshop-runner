@@ -19,6 +19,9 @@ pub struct ExercisesConfig {
     /// The command that should be run to verify that the workshop-runner is working as expected.
     #[serde(default)]
     verification: Vec<Verification>,
+    /// Don't try to build the project before running the verification command.
+    #[serde(default)]
+    pub skip_build: bool,
 }
 
 #[derive(serde::Deserialize, Debug)]

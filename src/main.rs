@@ -30,7 +30,7 @@ pub struct Command {
 
     #[arg(long)]
     /// By default, `wr` will prompt you to open the next exercise if all the currently opened
-    /// exercises passed their tests.  
+    /// exercises passed their tests.
     /// With this flag, `wr` will automatically open the next exercise if all the currently opened
     /// exercises passed their tests. It'll then run the tests for the newly opened exercise.
     /// If they pass, it'll open the next one, and so on.
@@ -139,6 +139,7 @@ fn main() -> Result<(), anyhow::Error> {
                     &exercises,
                     &definition,
                     configuration.verification(),
+                    configuration.skip_build,
                     verbose,
                 )?;
             }
@@ -152,6 +153,7 @@ fn main() -> Result<(), anyhow::Error> {
         &mut exercises,
         command.recheck,
         configuration.verification(),
+        configuration.skip_build,
         verbose,
     )? {
         print_failure_message(&command, &details);
@@ -168,6 +170,7 @@ fn main() -> Result<(), anyhow::Error> {
                 &exercises,
                 &next_exercise,
                 configuration.verification(),
+                configuration.skip_build,
                 command.verbose,
             )?;
             if let TestOutcome::Failure { command, details } = exercise_outcome {
@@ -223,6 +226,7 @@ fn seek_the_path(
     exercises: &mut ExerciseCollection,
     recheck: bool,
     verification: &[Verification],
+    skip_build: bool,
     verbose: bool,
 ) -> Result<TestOutcome, anyhow::Error> {
     println!(" \n\n{}", info_style().dimmed().paint("Running tests...\n"));
@@ -239,7 +243,7 @@ fn seek_the_path(
             );
             continue;
         }
-        let exercise_outcome = verify(exercises, &definition, verification, verbose)?;
+        let exercise_outcome = verify(exercises, &definition, verification, skip_build, verbose)?;
         if let TestOutcome::Failure { command, details } = exercise_outcome {
             return Ok(TestOutcome::Failure { command, details });
         }
@@ -251,6 +255,7 @@ fn verify(
     exercises: &ExerciseCollection,
     definition: &ExerciseDefinition,
     verification: &[Verification],
+    skip_build: bool,
     verbose: bool,
 ) -> Result<TestOutcome, anyhow::Error> {
     let exercise_config = definition.config(exercises.exercises_dir())?;
@@ -262,6 +267,7 @@ fn verify(
     let exercise_outcome = _verify(
         &definition.manifest_path(exercises.exercises_dir()),
         verification,
+        skip_build,
         verbose,
     );
     match &exercise_outcome {
@@ -277,7 +283,12 @@ fn verify(
     Ok(exercise_outcome)
 }
 
-fn _verify(manifest_path: &Path, verification: &[Verification], verbose: bool) -> TestOutcome {
+fn _verify(
+    manifest_path: &Path,
+    verification: &[Verification],
+    skip_build: bool,
+    verbose: bool,
+) -> TestOutcome {
     // Tell cargo to return colored output, unless we are on Windows and the terminal
     // doesn't support it.
     let color_option = if use_ansi_colours() {
@@ -287,7 +298,7 @@ fn _verify(manifest_path: &Path, verification: &[Verification], verbose: bool) -
     };
 
     // `cargo build` first
-    {
+    if !skip_build {
         let mut cmd = std::process::Command::new("cargo");
         cmd.arg("build");
         cmd.arg("--manifest-path");
