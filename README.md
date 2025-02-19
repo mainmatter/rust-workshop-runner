@@ -5,7 +5,6 @@
         A Rust workshop runner
         </strong>
     </div>
-
     <div align="center">
         <!-- Crates version -->
         <a href="https://crates.io/crates/cargo-px">
