@@ -135,13 +135,16 @@ fn main() -> Result<(), anyhow::Error> {
                         manifest_folder == current_dir
                     })
                     .ok_or_else(|| anyhow::anyhow!("The current directory is not an exercise"))?;
-                verify(
+                if let TestOutcome::Failure { command, details } = verify(
                     &exercises,
                     &definition,
                     configuration.verification(),
                     configuration.skip_build,
                     verbose,
-                )?;
+                )? {
+                    print_failure_message(&command, &details);
+                    std::process::exit(1);
+                }
             }
         }
         return Ok(());
