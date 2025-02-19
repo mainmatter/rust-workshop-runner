@@ -56,7 +56,7 @@ You can see it in action in the [rust-telemetry-workshop](https://github.com/mai
 ## Installation
 
 ```bash
-cargo install workshop-runner
+cargo install --locked workshop-runner
 ```
 
 Check that it has been installed correctly:
