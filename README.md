@@ -5,7 +5,6 @@
         A Rust workshop runner
         </strong>
     </div>
-
     <div align="center">
         <!-- Crates version -->
         <a href="https://crates.io/crates/cargo-px">
@@ -56,7 +55,7 @@ You can see it in action in the [rust-telemetry-workshop](https://github.com/mai
 ## Installation
 
 ```bash
-cargo install workshop-runner
+cargo install --locked workshop-runner
 ```
 
 Check that it has been installed correctly:
