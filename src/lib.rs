@@ -1,13 +1,15 @@
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use fs_err::read_dir;
 use regex::Regex;
-use rusqlite::{params, Connection};
-use std::cmp::Ordering;
-use std::collections::BTreeSet;
-use std::ffi::OsStr;
-use std::fmt::Formatter;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use rusqlite::{Connection, params};
+use std::{
+    cmp::Ordering,
+    collections::BTreeSet,
+    ffi::OsStr,
+    fmt::Formatter,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 #[derive(serde::Deserialize, Debug)]
 /// The configuration for the current collection of exercises.
