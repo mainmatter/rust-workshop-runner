@@ -1,8 +1,7 @@
 use clap::{Parser, Subcommand};
 use fs_err::PathExt;
 use read_input::prelude::*;
-use std::ffi::OsString;
-use std::path::Path;
+use std::{ffi::OsString, path::Path};
 use wr::{ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise, Verification};
 use yansi::Paint;
 
