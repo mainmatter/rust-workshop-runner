@@ -108,11 +108,10 @@ cargo watch -- wr
 
 Each `xx_<exercise name>` folder must be a Rust project with its own `Cargo.toml` file.
 
-You can choose a different top-level folder name by either passing the `--exercises-dir` flag when invoking `wr`
-or by creating a top-level `wr.toml` file with the following content:
+You can choose a different top-level folder name by creating a top-level `.wr.toml` file with the following content:
 
 ```toml
-exercises-dir = "my-top-level-folder"
+exercises_dir = "my-top-level-folder"
 ```
 
 You can refer to [rust-telemetry-workshop](https://github.com/mainmatter/rust-telemetry-workshop) as an example.
