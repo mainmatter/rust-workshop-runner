@@ -2,7 +2,10 @@ use clap::{Parser, Subcommand};
 use fs_err::PathExt;
 use read_input::prelude::*;
 use std::{ffi::OsString, path::Path};
-use wr::{ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise, Verification};
+use wr::{
+    ExerciseCollection, ExerciseDefinition, ExercisesConfig, OpenedExercise, Verification,
+    tee_helper::run_and_capture,
+};
 use yansi::Paint;
 
 /// A small CLI to manage test-driven workshops and tutorials in Rust.
@@ -359,12 +362,19 @@ fn _verify(
         });
         for mut verification_cmd in verification_commands {
             let error_msg = format!("Failed to run: `{:?}`", verification_cmd);
-            let output = verification_cmd.output().expect(&error_msg);
+            let command_dbg = format!("{:?}", verification_cmd);
+            let (status, stderr, stdout) = if verbose {
+                let captured = run_and_capture(verification_cmd).expect(&error_msg);
+                (captured.status, captured.stderr, captured.stdout)
+            } else {
+                let output = verification_cmd.output().expect(&error_msg);
+                (output.status, output.stderr, output.stdout)
+            };
 
-            if !output.status.success() {
+            if !status.success() {
                 return TestOutcome::Failure {
-                    command: format!("{:?}", verification_cmd),
-                    details: [output.stderr, output.stdout].concat(),
+                    command: command_dbg,
+                    details: [stderr, stdout].concat(),
                 };
             }
         }
