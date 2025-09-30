@@ -11,6 +11,8 @@ use std::{
     process::Command,
 };
 
+pub mod tee_helper;
+
 #[derive(serde::Deserialize, Debug)]
 /// The configuration for the current collection of exercises.
 pub struct ExercisesConfig {
