@@ -1,6 +1,6 @@
 [package]
 name = "workshop-runner"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Luca Palmieri <rust@lpalmieri.com>"]
