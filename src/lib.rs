@@ -422,7 +422,10 @@ impl ExerciseDefinition {
     /// Verify that the exercise exists.
     /// It may have been removed from the repository after an update to the current course.
     pub fn exists(&self, exercises_dir: &Path) -> bool {
-        self.manifest_path(exercises_dir).exists()
+        self.manifest_folder_path(exercises_dir)
+            .join(".wr.toml")
+            .exists()
+            || self.manifest_path(exercises_dir).exists()
     }
 }
 
