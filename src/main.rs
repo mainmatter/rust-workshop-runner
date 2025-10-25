@@ -303,7 +303,7 @@ fn _verify(
     };
 
     // `cargo build` first
-    if !skip_build {
+    if !skip_build && manifest_path.exists() {
         let mut cmd = std::process::Command::new("cargo");
         cmd.arg("build");
         cmd.arg("--manifest-path");

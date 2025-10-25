@@ -106,7 +106,7 @@ cargo watch -- wr
 │  │  ├── 0n_<exercise name>
 ```
 
-Each `xx_<exercise name>` folder must be a Rust project with its own `Cargo.toml` file.
+Each `xx_<exercise name>` folder must be a Rust project with its own `Cargo.toml` file for Rust projects, or a `wr.toml` file.
 
 You can choose a different top-level folder name by creating a top-level `.wr.toml` file with the following content:
 
