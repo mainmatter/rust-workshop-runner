@@ -33,6 +33,7 @@ by the workshop participants.
 > training!
 
 <div class="oranda-hide">
+    
 ## How to install
 
 Check out the instructions on the [release page](https://mainmatter.github.io/rust-workshop-runner/).
