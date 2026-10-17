@@ -35,3 +35,9 @@ textwrap = "0.16.1"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
